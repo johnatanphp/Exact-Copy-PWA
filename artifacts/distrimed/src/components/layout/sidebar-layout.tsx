@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useGetMe } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { useLogout } from "@workspace/api-client-react";
@@ -48,8 +49,13 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
-    setLocation("/login");
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation("/login");
+    }
+  }, [isLoading, user, setLocation]);
+
+  if (!isLoading && !user) {
     return null;
   }
 

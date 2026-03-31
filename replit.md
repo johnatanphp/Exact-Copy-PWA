@@ -1,8 +1,19 @@
-# Workspace
+# DistriMed — Catálogo Médico
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+DistriMed is a Spanish-language medical product catalog PWA built as a pnpm workspace monorepo.
+Dark cyberpunk design system (navy `#050c1a`, cyan `#00e5ff` accents, Barlow Condensed + DM Mono fonts).
+Role-based access: **admin** (full CRUD), **vendedor** (view+filter), **viewer** (browse only).
+Demo credentials: `admin / admin123`, `vendedor1 / admin123`, `viewer1 / admin123`.
+
+### Key Features
+- Login page with clickable account-selector cards for quick role access
+- Role-specific dashboards (stats, charts, product tables)
+- Product catalog CRUD with category filters and search
+- Category management
+- User management (admin only)
+- PWA manifest for installability
 
 ## Stack
 
