@@ -1,294 +1,341 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { SidebarLayout } from "@/components/layout/sidebar-layout";
-import { 
-  useGetProduct, 
-  useCreateProduct, 
-  useUpdateProduct, 
+import {
+  useGetProduct,
+  useCreateProduct,
+  useUpdateProduct,
   useGetCategories,
   getGetProductsQueryKey,
-  getGetProductQueryKey
+  getGetProductQueryKey,
+  useGetMe,
 } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Image as ImageIcon, Activity } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMe } from "@workspace/api-client-react";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: user } = useGetMe();
-  
+
   const isNew = !id || id === "new";
   const productId = isNew ? 0 : parseInt(id);
-  
-  // Read ?edit=true from query string manually since wouter doesn't have useSearchParams
+
   const searchParams = new URLSearchParams(window.location.search);
   const initialEditMode = searchParams.get("edit") === "true";
-  
+
   const [isEditing, setIsEditing] = useState(isNew || initialEditMode);
-  
-  const { data: product, isLoading: isLoadingProduct } = useGetProduct(productId, { 
-    query: { enabled: !isNew, queryKey: getGetProductQueryKey(productId) } 
+  const [alert, setAlert] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+
+  const { data: product, isLoading } = useGetProduct(productId, {
+    query: { enabled: !isNew, queryKey: getGetProductQueryKey(productId) },
   });
-  
   const { data: categories } = useGetCategories();
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
 
   const [formData, setFormData] = useState({
-    name: "",
-    code: "",
-    description: "",
-    categoryId: "",
-    price: "",
-    stock: "",
-    image: ""
+    name: "", code: "", description: "", categoryId: "",
+    price: "", stock: "", image: "",
   });
 
   useEffect(() => {
     if (product && !isNew) {
       setFormData({
-        name: product.name,
-        code: product.code,
+        name: product.name, code: product.code,
         description: product.description || "",
         categoryId: product.categoryId.toString(),
-        price: product.price.toString(),
-        stock: product.stock.toString(),
-        image: product.image || ""
+        price: product.price.toString(), stock: product.stock.toString(),
+        image: product.image || "",
       });
     }
   }, [product, isNew]);
 
-  const canEdit = ["admin"].includes(user?.role || "");
+  const canEdit = user?.role === "admin";
 
-  if (!isNew && isLoadingProduct) {
-    return (
-      <SidebarLayout>
-        <div className="flex h-full items-center justify-center">
-          <Activity className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </SidebarLayout>
-    );
-  }
+  const showAlert = (type: "ok" | "err", msg: string) => {
+    setAlert({ type, msg });
+    setTimeout(() => setAlert(null), 3000);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     const payload = {
-      name: formData.name,
-      code: formData.code,
-      description: formData.description,
+      name: formData.name, code: formData.code, description: formData.description,
       categoryId: parseInt(formData.categoryId),
-      price: parseFloat(formData.price),
-      stock: parseInt(formData.stock),
-      image: formData.image
+      price: parseFloat(formData.price), stock: parseInt(formData.stock),
+      image: formData.image,
     };
 
     if (isNew) {
       createMutation.mutate({ data: payload }, {
         onSuccess: () => {
-          toast({ title: "Éxito", description: "Producto creado correctamente." });
           queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
           setLocation("/catalogo");
         },
-        onError: () => toast({ title: "Error", description: "No se pudo crear.", variant: "destructive" })
+        onError: () => showAlert("err", "No se pudo crear el producto"),
       });
     } else {
       updateMutation.mutate({ id: productId, data: payload }, {
         onSuccess: (data) => {
-          toast({ title: "Éxito", description: "Producto actualizado." });
           queryClient.setQueryData(getGetProductQueryKey(productId), data);
           queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
           setIsEditing(false);
+          showAlert("ok", "Producto actualizado correctamente");
         },
-        onError: () => toast({ title: "Error", description: "No se pudo actualizar.", variant: "destructive" })
+        onError: () => showAlert("err", "No se pudo actualizar el producto"),
       });
     }
   };
 
+  if (!isNew && isLoading) {
+    return (
+      <SidebarLayout>
+        <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "2rem", marginBottom: 12 }}>🔬</div>
+            <div style={{ fontFamily: "var(--cond)", fontSize: ".85rem", color: "var(--t2)", letterSpacing: ".08em" }}>CARGANDO...</div>
+          </div>
+        </div>
+      </SidebarLayout>
+    );
+  }
+
+  const stockNum = parseInt(formData.stock) || 0;
+  const stockColor = stockNum === 0 ? "var(--re)" : stockNum <= 10 ? "var(--ye)" : "var(--gr)";
+  const stockLabel = stockNum === 0 ? "Agotado" : stockNum <= 10 ? "Stock bajo" : "En stock";
+
   return (
     <SidebarLayout>
-      <div className="p-8 max-w-5xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => setLocation("/catalogo")} className="-ml-4 text-gray-500">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver al catálogo
-        </Button>
-
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {isNew ? "Nuevo Producto" : isEditing ? "Editar Producto" : product?.name}
-          </h1>
+      <div className="page-wrap" style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+          <button className="btn btn-sec btn-sm" onClick={() => setLocation("/catalogo")}>
+            ← Catálogo
+          </button>
+          <div>
+            <h1 className="page-title">
+              {isNew ? "Nuevo Producto" : isEditing ? "Editar Producto" : product?.name}
+            </h1>
+            {!isNew && product && (
+              <div style={{ fontSize: ".78rem", color: "var(--t2)", fontFamily: "var(--mono)", marginTop: 2 }}>
+                {product.code} · {product.categoryName}
+              </div>
+            )}
+          </div>
           {!isNew && !isEditing && canEdit && (
-            <Button onClick={() => setIsEditing(true)}>
-              Editar
-            </Button>
+            <button className="btn btn-cy btn-sm" style={{ marginLeft: "auto" }} onClick={() => setIsEditing(true)}>
+              ✏️ Editar
+            </button>
           )}
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="md:col-span-2 space-y-6">
-              <Card className="shadow-sm">
-                <CardContent className="p-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2 col-span-2 md:col-span-1">
-                      <Label htmlFor="code">Código SKU *</Label>
-                      <Input 
-                        id="code" 
-                        value={formData.code}
-                        onChange={(e) => setFormData({...formData, code: e.target.value})}
-                        disabled={!isEditing}
-                        required
-                        className="font-mono"
-                      />
-                    </div>
-                    <div className="space-y-2 col-span-2 md:col-span-1">
-                      <Label htmlFor="categoryId">Categoría *</Label>
-                      <Select 
-                        value={formData.categoryId} 
-                        onValueChange={(val) => setFormData({...formData, categoryId: val})}
-                        disabled={!isEditing}
-                        required
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories?.map(c => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <Label htmlFor="name">Nombre del Producto *</Label>
-                      <Input 
-                        id="name" 
-                        value={formData.name}
-                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        disabled={!isEditing}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <Label htmlFor="description">Descripción</Label>
-                      <Textarea 
-                        id="description" 
-                        rows={5}
-                        value={formData.description}
-                        onChange={(e) => setFormData({...formData, description: e.target.value})}
-                        disabled={!isEditing}
-                        className="resize-none"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+        {alert && (
+          <div className={`alert ${alert.type === "ok" ? "al-ok" : "al-err"}`}>{alert.msg}</div>
+        )}
 
-              <Card className="shadow-sm">
-                <CardContent className="p-6 space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2 mb-4">Inventario y Precio</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Precio (USD) *</Label>
-                      <Input 
-                        id="price" 
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.price}
-                        onChange={(e) => setFormData({...formData, price: e.target.value})}
-                        disabled={!isEditing}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="stock">Stock *</Label>
-                      <Input 
-                        id="stock" 
-                        type="number"
-                        min="0"
-                        value={formData.stock}
-                        onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                        disabled={!isEditing}
-                        required
-                      />
-                    </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+            {/* Left column */}
+            <div>
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div style={{
+                  fontFamily: "var(--cond)", fontSize: ".75rem", fontWeight: 700,
+                  color: "var(--t2)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 14,
+                }}>
+                  INFORMACIÓN BÁSICA
+                </div>
+                <div className="fg-row">
+                  <div className="fg">
+                    <label>Código SKU *</label>
+                    <input
+                      value={formData.code}
+                      onChange={e => setFormData({ ...formData, code: e.target.value })}
+                      disabled={!isEditing}
+                      required
+                      placeholder="DM-001"
+                      style={{ fontFamily: "var(--mono)" }}
+                    />
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="fg">
+                    <label>Categoría *</label>
+                    <select
+                      value={formData.categoryId}
+                      onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                      disabled={!isEditing}
+                      required
+                    >
+                      <option value="">Seleccionar...</option>
+                      {categories?.map(c => (
+                        <option key={c.id} value={c.id.toString()}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="fg">
+                  <label>Nombre del Producto *</label>
+                  <input
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    disabled={!isEditing}
+                    required
+                    placeholder="Ej: Tensiómetro Digital"
+                  />
+                </div>
+                <div className="fg">
+                  <label>Descripción</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    disabled={!isEditing}
+                    rows={4}
+                    placeholder="Descripción detallada del producto médico..."
+                  />
+                </div>
+              </div>
+
+              <div className="card">
+                <div style={{
+                  fontFamily: "var(--cond)", fontSize: ".75rem", fontWeight: 700,
+                  color: "var(--t2)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 14,
+                }}>
+                  INVENTARIO Y PRECIO
+                </div>
+                <div className="fg-row">
+                  <div className="fg">
+                    <label>Precio (USD) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price}
+                      onChange={e => setFormData({ ...formData, price: e.target.value })}
+                      disabled={!isEditing}
+                      required
+                      placeholder="0.00"
+                      style={{ fontFamily: "var(--mono)" }}
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Stock *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.stock}
+                      onChange={e => setFormData({ ...formData, stock: e.target.value })}
+                      disabled={!isEditing}
+                      required
+                      placeholder="0"
+                      style={{ fontFamily: "var(--mono)", color: stockColor }}
+                    />
+                  </div>
+                </div>
+                {!isNew && formData.stock && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span className={`badge ${stockNum === 0 ? "b-re" : stockNum <= 10 ? "b-warn" : "b-ok"}`}>
+                      {stockLabel}
+                    </span>
+                    <span style={{ fontFamily: "var(--mono)", color: stockColor, fontSize: ".85rem" }}>
+                      {stockNum} unidades
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-6">
-              <Card className="shadow-sm">
-                <CardContent className="p-6 space-y-4">
-                  <Label>Imagen del Producto</Label>
-                  <div className="border-2 border-dashed rounded-lg h-64 flex flex-col items-center justify-center bg-gray-50 overflow-hidden relative">
-                    {formData.image ? (
-                      <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center text-gray-400 p-4">
-                        <ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">Sin imagen</p>
-                      </div>
-                    )}
+            {/* Right column */}
+            <div>
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div style={{
+                  fontFamily: "var(--cond)", fontSize: ".75rem", fontWeight: 700,
+                  color: "var(--t2)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12,
+                }}>
+                  IMAGEN
+                </div>
+                <div style={{
+                  height: 180,
+                  background: "linear-gradient(135deg,var(--bg3),var(--bg4))",
+                  border: "1px solid var(--bd)",
+                  borderRadius: "var(--r)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
+                  marginBottom: 10,
+                  fontSize: "4rem",
+                }}>
+                  {formData.image ? (
+                    <img src={formData.image} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : "💊"}
+                </div>
+                {isEditing && (
+                  <div className="fg">
+                    <label>URL de imagen</label>
+                    <input
+                      value={formData.image}
+                      onChange={e => setFormData({ ...formData, image: e.target.value })}
+                      placeholder="https://..."
+                    />
                   </div>
-                  {isEditing && (
-                    <div className="space-y-2">
-                      <Label htmlFor="image">URL de la imagen</Label>
-                      <Input 
-                        id="image" 
-                        value={formData.image}
-                        onChange={(e) => setFormData({...formData, image: e.target.value})}
-                        placeholder="https://..."
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                )}
+              </div>
+
+              {/* Quick stats for existing products */}
+              {!isNew && product && (
+                <div className="card" style={{ marginBottom: 14 }}>
+                  <div style={{
+                    fontFamily: "var(--cond)", fontSize: ".75rem", fontWeight: 700,
+                    color: "var(--t2)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 12,
+                  }}>
+                    DETALLES
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      ["ID", `#${product.id}`],
+                      ["Código", product.code],
+                      ["Categoría", product.categoryName],
+                      ["Precio", `$${product.price.toFixed(2)}`],
+                    ].map(([k, v]) => (
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem" }}>
+                        <span style={{ color: "var(--t2)", fontFamily: "var(--cond)", fontWeight: 700, textTransform: "uppercase", fontSize: ".7rem" }}>{k}</span>
+                        <span style={{ fontFamily: "var(--mono)", color: "var(--cy)" }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {isEditing && (
-                <div className="flex gap-4">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <button
+                    type="submit"
+                    className="btn btn-cy w-full"
+                    disabled={createMutation.isPending || updateMutation.isPending}
+                  >
+                    {createMutation.isPending || updateMutation.isPending
+                      ? "Guardando..."
+                      : isNew ? "💾 Crear Producto" : "💾 Guardar Cambios"}
+                  </button>
                   {!isNew && (
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      className="flex-1"
+                    <button
+                      type="button"
+                      className="btn btn-sec w-full"
                       onClick={() => {
                         setIsEditing(false);
                         if (product) {
                           setFormData({
-                            name: product.name,
-                            code: product.code,
+                            name: product.name, code: product.code,
                             description: product.description || "",
                             categoryId: product.categoryId.toString(),
                             price: product.price.toString(),
                             stock: product.stock.toString(),
-                            image: product.image || ""
+                            image: product.image || "",
                           });
                         }
                       }}
                     >
                       Cancelar
-                    </Button>
+                    </button>
                   )}
-                  <Button 
-                    type="submit" 
-                    className="flex-1 bg-primary"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Guardar
-                  </Button>
                 </div>
               )}
             </div>

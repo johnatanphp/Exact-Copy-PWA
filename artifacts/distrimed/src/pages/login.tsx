@@ -2,20 +2,20 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useLogin, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Eye, EyeOff } from "lucide-react";
+
+const ACCOUNTS = [
+  { icon: "🔴", username: "admin", password: "admin123", role: "Superadmin", label: "Control total del sistema", cls: "av-admin" },
+  { icon: "🟠", username: "vendedor1", password: "admin123", role: "Vendedor", label: "Gestión de catálogo", cls: "av-vendedor" },
+  { icon: "🟢", username: "viewer1",  password: "admin123", role: "Viewer",   label: "Solo lectura",         cls: "av-viewer" },
+];
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const [errorMsg, setErrorMsg] = useState("");
-
   const loginMutation = useLogin();
   const { data: user } = useGetMe();
 
@@ -24,8 +24,16 @@ export default function Login() {
     return null;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const fill = (acc: typeof ACCOUNTS[0]) => {
+    setUsername(acc.username);
+    setPassword(acc.password);
+    setSelected(acc.username);
+    setErrorMsg("");
+  };
+
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!username || !password) return;
     setErrorMsg("");
     loginMutation.mutate(
       { data: { username, password } },
@@ -34,89 +42,100 @@ export default function Login() {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           setLocation("/dashboard");
         },
-        onError: () => {
-          setErrorMsg("Usuario o contraseña incorrectos");
-        }
+        onError: () => setErrorMsg("Usuario o contraseña incorrectos"),
       }
     );
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-600/10 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-[30vh] bg-primary rounded-b-[100%] opacity-10"></div>
-      
-      <Card className="w-full max-w-md shadow-xl border-0 z-10">
-        <CardHeader className="space-y-4 text-center pb-8 pt-8">
-          <div className="mx-auto bg-primary/10 p-4 rounded-full w-20 h-20 flex items-center justify-center">
-            <Activity className="h-10 w-10 text-primary" />
+    <div className="login-pg">
+      <div className="login-glow" />
+      <div className="login-grid" />
+
+      <div className="login-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+          <span style={{ fontSize: "1.8rem" }}>🏥</span>
+          <div className="login-logo">DistriMed</div>
+        </div>
+        <div className="login-sub">Sistema de Catálogo Médico · Acceso por roles</div>
+
+        {/* Quick-access accounts */}
+        <div className="demo-box">
+          <div style={{
+            marginBottom: 10,
+            fontFamily: "var(--cond)",
+            fontWeight: 800,
+            fontSize: ".8rem",
+            color: "var(--t2)",
+            textTransform: "uppercase",
+            letterSpacing: ".08em"
+          }}>
+            ⚡ Accesos rápidos demo
           </div>
-          <div className="space-y-2">
-            <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">
-              DistriMed
-            </CardTitle>
-            <CardDescription className="text-gray-500">
-              Sistema de Gestión de Catálogo Médico
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {errorMsg && (
-              <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md border border-red-200">
-                {errorMsg}
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="username">Usuario</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="h-11"
-                placeholder="Ingrese su usuario"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Contraseña</Label>
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="h-11 pr-10"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full h-11 text-base font-medium" 
-              disabled={loginMutation.isPending}
+          {ACCOUNTS.map(acc => (
+            <button
+              key={acc.username}
+              className={`demo-account${selected === acc.username ? " active" : ""}`}
+              onClick={() => fill(acc)}
+              type="button"
             >
-              {loginMutation.isPending ? "Ingresando..." : "Ingresar"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <div className={`user-av ${acc.cls}`} style={{ fontSize: "1rem" }}>{acc.icon}</div>
+              <div className="da-info">
+                <div className="da-role">{acc.role}</div>
+                <div className="da-user">{acc.username} · {acc.label}</div>
+              </div>
+              <div className="da-arrow">→</div>
+            </button>
+          ))}
+        </div>
+
+        {errorMsg && (
+          <div className="alert al-err" style={{ marginBottom: 16 }}>⚠️ {errorMsg}</div>
+        )}
+
+        <form onSubmit={submit}>
+          <div className="fg">
+            <label>Usuario</label>
+            <input
+              type="text"
+              placeholder="Ingrese su usuario"
+              value={username}
+              onChange={e => { setUsername(e.target.value); setSelected(null); }}
+              autoComplete="username"
+            />
+          </div>
+          <div className="fg" style={{ marginBottom: 22 }}>
+            <label>Contraseña</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setSelected(null); }}
+              autoComplete="current-password"
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn btn-cy w-full btn-lg"
+            disabled={loginMutation.isPending || !username}
+          >
+            {loginMutation.isPending ? "Ingresando..." : "🚀 Ingresar"}
+          </button>
+        </form>
+
+        <div style={{
+          marginTop: 20,
+          padding: "10px 14px",
+          background: "var(--bg3)",
+          borderRadius: "var(--r)",
+          fontSize: ".72rem",
+          color: "var(--t2)",
+          fontFamily: "var(--mono)",
+          textAlign: "center",
+        }}>
+          Demo · Contraseña: <span style={{ color: "var(--cy)" }}>admin123</span>
+        </div>
+      </div>
     </div>
   );
 }

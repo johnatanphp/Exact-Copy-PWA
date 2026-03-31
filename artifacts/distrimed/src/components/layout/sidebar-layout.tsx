@@ -1,19 +1,26 @@
 import { useGetMe } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
-import { 
-  Activity, 
-  LayoutDashboard, 
-  Package, 
-  Tags, 
-  Users,
-  LogOut,
-  User as UserIcon
-} from "lucide-react";
 import { useLogout } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
+
+const NAV_ITEMS = [
+  { href: "/dashboard",  label: "Dashboard",    icon: "📊", roles: ["admin", "vendedor", "viewer"] },
+  { href: "/catalogo",   label: "Catálogo",      icon: "🧬", roles: ["admin", "vendedor", "viewer"] },
+  { href: "/categorias", label: "Categorías",    icon: "🏷️", roles: ["admin", "vendedor", "viewer"] },
+  { href: "/usuarios",   label: "Usuarios",      icon: "👥", roles: ["admin"] },
+];
+
+const roleLabel: Record<string, string> = {
+  admin: "Superadmin",
+  vendedor: "Vendedor",
+  viewer: "Solo lectura",
+};
+
+const roleClass: Record<string, string> = {
+  admin: "av-admin",
+  vendedor: "av-vendedor",
+  viewer: "av-viewer",
+};
 
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -26,14 +33,17 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
       onSuccess: () => {
         queryClient.clear();
         setLocation("/login");
-      }
+      },
     });
   };
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <Activity className="h-8 w-8 animate-spin text-primary" />
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "2rem", marginBottom: 12 }}>🏥</div>
+          <div style={{ fontFamily: "var(--cond)", fontSize: ".85rem", color: "var(--t2)", letterSpacing: ".08em" }}>CARGANDO...</div>
+        </div>
       </div>
     );
   }
@@ -43,68 +53,57 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "vendedor", "viewer"] },
-    { href: "/catalogo", label: "Catálogo", icon: Package, roles: ["admin", "vendedor", "viewer"] },
-    { href: "/categorias", label: "Categorías", icon: Tags, roles: ["admin", "vendedor", "viewer"] },
-    { href: "/usuarios", label: "Usuarios", icon: Users, roles: ["admin"] },
-  ];
-
-  const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
+  const visibleNav = NAV_ITEMS.filter(n => n.roles.includes(user.role));
+  const initials = user.name ? user.name.slice(0, 2).toUpperCase() : user.username.slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex h-screen bg-gray-50/50">
+    <div className="app-shell">
       {/* Sidebar */}
-      <aside className="w-64 flex-col border-r bg-white flex shadow-sm z-10">
-        <div className="p-6">
-          <div className="flex items-center gap-2 font-bold text-xl text-primary">
-            <Activity className="h-6 w-6" />
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="sidebar-brand">
+            <span>🏥</span>
             DistriMed
           </div>
+          <div className="sidebar-tagline">CATÁLOGO MÉDICO · v2.0</div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
-          {visibleNavItems.map((item) => (
-            <Link 
-              key={item.href} 
+        <nav className="sidebar-nav">
+          {visibleNav.map(item => (
+            <Link
+              key={item.href}
               href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                location === item.href 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              )}
+              className={`nav-item${location === item.href || location.startsWith(item.href + "/") ? " active" : ""}`}
             >
-              <item.icon className="h-4 w-4" />
+              <span className="nav-icon">{item.icon}</span>
               {item.label}
             </Link>
           ))}
         </nav>
 
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="bg-primary/10 p-2 rounded-full text-primary">
-              <UserIcon className="h-4 w-4" />
+        <div className="sidebar-user">
+          <div className="user-chip">
+            <div className={`user-av ${roleClass[user.role] || "av-viewer"}`}>
+              {initials}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-              <p className="text-xs text-gray-500 capitalize truncate">{user.role}</p>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="user-name">{user.name || user.username}</div>
+              <div className="user-role">{roleLabel[user.role] || user.role}</div>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
+          <button
+            className="btn btn-re w-full"
             onClick={handleLogout}
             disabled={logout.isPending}
+            style={{ fontSize: ".78rem" }}
           >
-            <LogOut className="mr-2 h-4 w-4" />
-            {logout.isPending ? "Cerrando..." : "Cerrar sesión"}
-          </Button>
+            {logout.isPending ? "Cerrando..." : "⏻ Cerrar sesión"}
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="main-content">
         {children}
       </main>
     </div>
